@@ -43,7 +43,7 @@ export default function RelationshipFlowchart() {
   const deleteCharacter = (id) => {
     setCharacters((prev) => prev.filter((c) => c.id !== id));
     setRelationships((prev) =>
-      prev.filter((r) => r.fromId !== id && r.toId !== id)
+      prev.filter((r) => r.fromId !== id && r.toId !== id) 
     );
   };
 
