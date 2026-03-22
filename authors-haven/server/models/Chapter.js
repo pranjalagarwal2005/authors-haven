@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const chapterSchema = new mongoose.Schema(
   {
+    userId: {
+      type: String,
+      required: true,
+    },
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
@@ -12,6 +16,7 @@ const chapterSchema = new mongoose.Schema(
       required: true,
     },
     content: String,
+    description: String,
   },
   { timestamps: true }
 );

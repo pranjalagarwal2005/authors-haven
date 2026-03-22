@@ -7,7 +7,7 @@ export default function Home() {
     { title: "AI Search Assistant", icon: "💡" },
     { title: "Character Manager", icon: "👥" },
     { title: "Relationship Flowchart", icon: "🧩" },
-    { title: "World Building", icon: "🗺️" },
+
     { title: "Writing Workspace", icon: "✍️" },
     { title: "Book Management", icon: "📘" },
   ];
@@ -53,7 +53,8 @@ export default function Home() {
           {features.map((f, i) => (
             <div
               key={i}
-              className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition"
+              onClick={() => navigate("/auth")}
+              className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-lg transition cursor-pointer"
             >
               <div className="w-12 h-12 bg-indigo-600 text-white flex items-center justify-center rounded-xl text-xl mb-4">
                 {f.icon}

@@ -1,271 +1,232 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import Navbar from "../components/Navbar";
 
-const RELATION_TYPES = [
-  "Friend",
-  "Enemy",
-  "Sibling",
-  "Brother",
-  "Sister",
-  "Mentor",
-  "Student",
-  "Love Interest",
-];
+const RELATION_TYPES = ["Friend", "Enemy", "Sibling", "Brother", "Sister", "Mentor", "Student", "Love Interest"];
 
 export default function RelationshipFlowchart() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
   const [characters, setCharacters] = useState([]);
   const [relationships, setRelationships] = useState([]);
-
-  const [newName, setNewName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
   const [relation, setRelation] = useState("Friend");
+  const [newName, setNewName] = useState("");
 
-  /* ---------- Character Logic ---------- */
+  useEffect(() => {
+    if (!projectId && !loading) {
+      navigate("/dashboard");
+    }
+  }, [projectId, loading, navigate]);
 
-  const addCharacter = () => {
-    if (!newName.trim()) return;
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser && projectId) {
+        fetchData(currentUser.uid);
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [projectId]);
 
-    setCharacters((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
+  const fetchData = async (uid) => {
+    try {
+      const [charRes, relRes] = await Promise.all([
+        axios.get(`/api/characters?projectId=${projectId}`, { headers: { Authorization: `Bearer ${uid}` } }),
+        axios.get(`/api/relationships/project/${projectId}`, { headers: { Authorization: `Bearer ${uid}` } })
+      ]);
+      setCharacters(charRes.data);
+      setRelationships(relRes.data);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addCharacter = async () => {
+    if (!newName.trim() || !user) return;
+    try {
+      const res = await axios.post("/api/characters", {
         name: newName.trim(),
-        x: 100 + prev.length * 150,
-        y: 120 + (prev.length % 3) * 120,
-      },
-    ]);
-
-    setNewName("");
+        projectId
+      }, {
+        headers: { Authorization: `Bearer ${user.uid}` }
+      });
+      setCharacters([...characters, res.data]);
+      setNewName("");
+    } catch (err) {
+      console.error("Error adding character:", err);
+    }
   };
 
-  const deleteCharacter = (id) => {
-    setCharacters((prev) => prev.filter((c) => c.id !== id));
-    setRelationships((prev) =>
-      prev.filter((r) => r.fromId !== id && r.toId !== id) 
-    );
+  const addRelationship = async () => {
+    if (!fromId || !toId || fromId === toId || !user) return;
+
+    try {
+      const fromChar = characters.find(c => c._id === fromId);
+      const toChar = characters.find(c => c._id === toId);
+
+      const res = await axios.post("/api/relationships", {
+        projectId,
+        from: fromChar.name,
+        to: toChar.name,
+        fromId,
+        toId,
+        relation
+      }, {
+        headers: { Authorization: `Bearer ${user.uid}` }
+      });
+
+      setRelationships([...relationships, res.data]);
+      setFromId("");
+      setToId("");
+    } catch (err) {
+      console.error("Error adding relationship:", err);
+    }
   };
 
-  /* ---------- Relationship Logic ---------- */
-
-  const addRelationship = () => {
-    if (!fromId || !toId || fromId === toId) return;
-
-    setRelationships((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        fromId: Number(fromId),
-        toId: Number(toId),
-        relation,
-      },
-    ]);
-
-    setFromId("");
-    setToId("");
-    setRelation("Friend");
+  const deleteRelationship = async (id) => {
+    if (!user) return;
+    try {
+      await axios.delete(`/api/relationships/${id}`, {
+        headers: { Authorization: `Bearer ${user.uid}` }
+      });
+      setRelationships(relationships.filter(r => r._id !== id));
+    } catch (err) {
+      console.error("Error deleting relationship:", err);
+    }
   };
 
-  const updateRelationship = (id, newType) => {
-    setRelationships((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, relation: newType } : r
-      )
-    );
-  };
+  const getCharById = (id) => characters.find((c) => c._id === id);
 
-  const deleteRelationship = (id) => {
-    setRelationships((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  /* ---------- Helpers ---------- */
-
-  const getChar = (id) =>
-    characters.find((c) => c.id === id);
-
-  /* ---------- UI ---------- */
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading Relationships...</div>;
 
   return (
     <div className="min-h-screen bg-[#f8f7f3]">
       <Navbar />
 
-      <main className="px-10 py-10">
-        <h1 className="text-4xl font-serif font-bold mb-2">
-          Character Relationships
-        </h1>
-        <p className="text-gray-600 mb-8">
-          Create characters and define how they are related
-        </p>
+      <main className="px-10 py-10 max-w-6xl mx-auto">
+        <h1 className="text-4xl font-serif font-bold mb-2 text-gray-900">Character Relationships</h1>
+        <p className="text-gray-600 mb-8">Define how your characters are connected in this project.</p>
 
-        {/* ADD CHARACTER */}
-        <section className="bg-white border rounded-xl p-6 mb-8 max-w-xl">
-          <h3 className="font-semibold mb-4">Add Character</h3>
-          <input
-            className="border rounded-lg px-4 py-2 mr-3"
-            placeholder="Character name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-          />
-          <button
-            onClick={addCharacter}
-            className="bg-indigo-700 text-white px-4 py-2 rounded-lg"
-          >
-            Add
-          </button>
-        </section>
-
-        {/* DEFINE RELATIONSHIP */}
-        <section className="bg-white border rounded-xl p-6 mb-8 max-w-3xl">
-          <h3 className="font-semibold mb-4">
-            Define Relationship
-          </h3>
-
-          <div className="grid grid-cols-3 gap-4">
-            <select
-              value={fromId}
-              onChange={(e) => setFromId(e.target.value)}
-              className="border rounded-lg px-4 py-2"
-            >
-              <option value="">From</option>
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={relation}
-              onChange={(e) => setRelation(e.target.value)}
-              className="border rounded-lg px-4 py-2"
-            >
-              {RELATION_TYPES.map((r) => (
-                <option key={r}>{r}</option>
-              ))}
-            </select>
-
-            <select
-              value={toId}
-              onChange={(e) => setToId(e.target.value)}
-              className="border rounded-lg px-4 py-2"
-            >
-              <option value="">To</option>
-              {characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={addRelationship}
-            className="mt-4 bg-indigo-700 text-white px-6 py-2 rounded-lg"
-          >
-            Add Relationship
-          </button>
-        </section>
-
-        {/* VISUAL BOARD */}
-        <section className="bg-[#faf9f6] border rounded-2xl shadow-sm p-6">
-          <div
-            className="relative h-[450px]"
-            style={{
-              backgroundImage:
-                "radial-gradient(#e5e5e5 1px, transparent 1px)",
-              backgroundSize: "20px 20px",
-            }}
-          >
-            {/* SVG RELATION LINES */}
-            <svg className="absolute inset-0 w-full h-full">
-              {relationships.map((r) => {
-                const from = getChar(r.fromId);
-                const to = getChar(r.toId);
-                if (!from || !to) return null;
-
-                return (
-                  <g key={r.id}>
-                    <line
-                      x1={from.x + 50}
-                      y1={from.y + 20}
-                      x2={to.x + 50}
-                      y2={to.y + 20}
-                      stroke="#4f46e5"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x={(from.x + to.x) / 2 + 50}
-                      y={(from.y + to.y) / 2}
-                      fontSize="12"
-                      fill="#4f46e5"
-                    >
-                      {r.relation}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* CHARACTER NODES */}
-            {characters.map((c) => (
-              <div
-                key={c.id}
-                className="absolute bg-white border rounded-xl px-4 py-2 shadow-sm"
-                style={{ left: c.x, top: c.y }}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+          {/* QUICK ADD CHARACTER */}
+          <section className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm h-fit">
+            <h3 className="text-xl font-bold mb-6 text-gray-800">1. Quick Add Character</h3>
+            <div className="flex gap-4">
+              <input
+                className="flex-grow border rounded-xl px-4 py-3 bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="Character name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <button
+                onClick={addCharacter}
+                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg"
               >
-                <p className="font-medium">{c.name}</p>
-                <button
-                  onClick={() => deleteCharacter(c.id)}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Add characters here or in the Character Manager.</p>
+          </section>
 
-        {/* RELATIONSHIP LIST */}
-        {relationships.length > 0 && (
-          <section className="mt-8 bg-white border rounded-xl p-6">
-            <h3 className="font-semibold mb-4">
-              Relationships
-            </h3>
+          {/* DEFINE RELATIONSHIP */}
+          <section className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+            <h3 className="text-xl font-bold mb-6 text-gray-800">2. Define Relationship</h3>
 
-            {relationships.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center gap-4 mb-3"
-              >
-                <span>
-                  {getChar(r.fromId)?.name} →{" "}
-                  {getChar(r.toId)?.name}
-                </span>
-
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Character 1</label>
                 <select
-                  value={r.relation}
-                  onChange={(e) =>
-                    updateRelationship(r.id, e.target.value)
-                  }
-                  className="border rounded px-2 py-1"
+                  value={fromId}
+                  onChange={(e) => setFromId(e.target.value)}
+                  className="w-full border rounded-xl px-4 py-3 bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none"
                 >
-                  {RELATION_TYPES.map((t) => (
-                    <option key={t}>{t}</option>
+                  <option value="">Select</option>
+                  {characters.map((c) => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
                   ))}
                 </select>
-
-                <button
-                  onClick={() => deleteRelationship(r.id)}
-                  className="text-red-500 text-sm"
-                >
-                  Delete
-                </button>
               </div>
-            ))}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Is a...</label>
+                <select
+                  value={relation}
+                  onChange={(e) => setRelation(e.target.value)}
+                  className="w-full border rounded-xl px-4 py-3 bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  {RELATION_TYPES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Of Character 2</label>
+                <select
+                  value={toId}
+                  onChange={(e) => setToId(e.target.value)}
+                  className="w-full border rounded-xl px-4 py-3 bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="">Select</option>
+                  {characters.map((c) => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={addRelationship}
+              className="mt-8 w-full bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg"
+            >
+              Add Relationship
+            </button>
           </section>
-        )}
+        </div>
+
+        {/* VISUAL BOARD / LIST */}
+        <section className="bg-white border border-gray-100 rounded-3xl shadow-sm p-8">
+          <h3 className="text-xl font-bold mb-6 text-gray-800">Connection Map</h3>
+
+          {relationships.length === 0 ? (
+            <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-gray-400">
+              No relationships defined yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {relationships.map((r) => (
+                <div key={r._id} className="bg-gray-50 p-6 rounded-2xl border border-gray-100 flex justify-between items-center group hover:bg-white hover:shadow-md transition">
+                  <div>
+                    <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">{r.relation}</div>
+                    <div className="text-lg font-bold text-gray-800">
+                      {r.from} <span className="text-gray-400 font-normal mx-1">→</span> {r.to}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteRelationship(r._id)}
+                    className="text-red-400 hover:text-red-600 p-2 transform scale-0 group-hover:scale-100 transition"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );
 }
+

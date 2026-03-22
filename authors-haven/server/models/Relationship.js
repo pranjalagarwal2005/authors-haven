@@ -1,6 +1,10 @@
 const mongoose = require("mongoose");
 
 const relationshipSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    required: true
+  },
   projectId: mongoose.Schema.Types.ObjectId,
   from: String,
   to: String,

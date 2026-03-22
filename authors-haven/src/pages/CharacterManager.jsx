@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -8,11 +9,19 @@ import CharacterList from "../components/CharacterList";
 import ExportButton from "../components/ExportButton";
 
 export default function CharacterManager() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
   const [characters, setCharacters] = useState([]);
   const [editingCharacter, setEditingCharacter] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if (!projectId && !loading) {
+      navigate("/dashboard");
+    }
+  }, [projectId, loading, navigate]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -25,13 +34,14 @@ export default function CharacterManager() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [projectId]);
 
   const fetchCharacters = async (currentUser) => {
     try {
-      const response = await axios.get("/api/characters", {
+      const url = projectId ? `/api/characters?projectId=${projectId}` : "/api/characters";
+      const response = await axios.get(url, {
         headers: {
-          Authorization: `Bearer ${currentUser.uid}` // sending UID as token for now
+          Authorization: `Bearer ${currentUser.uid}`
         }
       });
       setCharacters(response.data);
@@ -45,7 +55,8 @@ export default function CharacterManager() {
   const addCharacter = async (characterData) => {
     if (!user) return;
     try {
-      const response = await axios.post("/api/characters", characterData, {
+      const data = projectId ? { ...characterData, projectId } : characterData;
+      const response = await axios.post("/api/characters", data, {
         headers: {
           Authorization: `Bearer ${user.uid}`
         }
@@ -116,10 +127,11 @@ export default function CharacterManager() {
           <CharacterList
             characters={characters}
             onEdit={setEditingCharacter}
-            onDelete={deleteCharacter} // Pass delete handler
+            onDelete={deleteCharacter}
           />
         )}
       </main>
     </div>
   );
 }
+

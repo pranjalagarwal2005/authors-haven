@@ -1,8 +1,10 @@
 const express = require("express");
 const Groq = require("groq-sdk");
 const Research = require("../models/Research");
+const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+router.use(protect);
 
 router.post("/", async (req, res) => {
   const { question, projectId } = req.body;
@@ -39,13 +41,14 @@ router.post("/", async (req, res) => {
       .replace(/^#{1,6}\s*(.*)$/gm, (_, p1) => p1.toUpperCase())
       .replace(/\*/g, "");
 
-    if (projectId) {
-      await Research.create({
-        projectId,
-        prompt: question,
-        response: text,
-      });
-    }
+    const newResearch = {
+      userId: req.user._id,
+      prompt: question,
+      response: text,
+    };
+    if (projectId) newResearch.projectId = projectId;
+
+    await Research.create(newResearch);
 
     res.json({ answer: text });
   } catch (err) {
@@ -54,5 +57,19 @@ router.post("/", async (req, res) => {
   }
 });
 
+// Get research history for a project
+router.get("/history/:projectId", async (req, res) => {
+  try {
+    const items = await Research.find({
+      projectId: req.params.projectId,
+      userId: req.user._id
+    }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
+
 

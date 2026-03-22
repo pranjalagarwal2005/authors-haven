@@ -58,9 +58,7 @@ export default function Navbar() {
         <NavLink to="/research" className={linkClass}>
           💡 Search
         </NavLink>
-        <NavLink to="/world" className={linkClass}>
-          🗺️ World
-        </NavLink>
+
       </nav>
 
       <div className="relative">

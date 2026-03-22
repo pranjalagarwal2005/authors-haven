@@ -1,4 +1,4 @@
-export default function ChapterList({ chapters = [] }) {
+export default function ChapterList({ chapters = [], onSelect, selectedId }) {
   return (
     <div className="space-y-3">
       {chapters.length === 0 && (
@@ -6,11 +6,20 @@ export default function ChapterList({ chapters = [] }) {
       )}
 
       {chapters.map((chapter) => (
-        <div key={chapter.id} className="border rounded-lg p-3 bg-white">
-          <h4 className="font-medium">{chapter.title}</h4>
+        <div
+          key={chapter._id}
+          onClick={() => onSelect && onSelect(chapter._id)}
+          className={`border rounded-lg p-3 cursor-pointer transition ${selectedId === chapter._id
+            ? "border-indigo-600 bg-indigo-50 shadow-sm"
+            : "bg-white hover:border-gray-300"
+            }`}
+        >
+          <h4 className={`font-medium ${selectedId === chapter._id ? "text-indigo-900" : "text-gray-900"}`}>
+            {chapter.title}
+          </h4>
 
           {chapter.description && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-500 line-clamp-2">
               {chapter.description}
             </p>
           )}
@@ -19,3 +28,4 @@ export default function ChapterList({ chapters = [] }) {
     </div>
   );
 }
+
